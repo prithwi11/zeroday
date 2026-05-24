@@ -1,0 +1,46 @@
+{
+  "name": "zeroday",
+  "version": "1.0.0",
+  "description": "",
+  "main": "./src/app.ts",
+  "scripts": {
+    "tsc": "tsc",
+    "start": "./src/app.ts",
+    "prod-start": "./dist/app.ts",
+    "dev": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' ./src/app.ts",
+    "copy-views": "cp -rv src/views/ dist/views/",
+    "copy-language": "cp -rv src/language/pt.json dist/language/pt.json",
+    "build": "npx tsc && npm run copy-views && npm run copy-language",
+    "prod": "tsc && npm run copy-views && npm run copy-language"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/prithwi11/zeroday.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/prithwi11/zeroday/issues"
+  },
+  "homepage": "https://github.com/prithwi11/zeroday#readme",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.21.0",
+    "sequelize": "^6.37.8"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.9.1",
+    "@types/pg": "^8.20.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  }
+}
