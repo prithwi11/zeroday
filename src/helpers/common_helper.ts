@@ -22,4 +22,25 @@ export class CommonHelper {
     verifyToken = (token: string): any => {
         return jwt.verify(token, process.env.JWT_SECRET as string);
     };
+
+    generateUniqueCode (firstChar: string, totalLength: number) {
+        const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const numbers = '0123456789';
+        
+        let result = firstChar.toUpperCase();
+        
+        // 1. Force the first two characters to be letters
+        while (result.length < 2) {
+            const randomLetterIndex = Math.floor(Math.random() * letters.length);
+            result += letters[randomLetterIndex];
+        }
+        
+        // 2. Fill the remaining length with numbers
+        while (result.length < totalLength) {
+            const randomNumberIndex = Math.floor(Math.random() * numbers.length);
+            result += numbers[randomNumberIndex];
+        }
+        
+        return result;
+    }
 }

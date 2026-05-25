@@ -18,4 +18,8 @@ router
     .route("/listDatabase")
     .post(middlewares, databaseController.listDatabases)
 
+router
+    .route("/connect")
+    .post(middlewares, databaseController.connectToDatabase)
+
 export const database_router = router;

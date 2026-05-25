@@ -1,5 +1,6 @@
 import { DataTypes } from "sequelize";
 import { Model } from "../../../model";
+import { SnapshotQueryModel } from "./model.snapshot_query";
 
 export class SnapshotModel extends Model {
     constructor() {
@@ -35,5 +36,14 @@ export class SnapshotModel extends Model {
                 schema: "main"
             }
         );
+    }
+
+    public assocWithSnapshotQueriesModel() {
+        const snapshotQueriesModel = new SnapshotQueryModel();
+        this.Model.hasMany(snapshotQueriesModel.Model, {
+            foreignKey: 'fk_snapshot_id',
+            sourceKey: 'snapshot_id'
+        });
+        return snapshotQueriesModel;
     }
 }

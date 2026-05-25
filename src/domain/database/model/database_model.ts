@@ -31,6 +31,12 @@ export class DatabaseModel extends Model {
                 modified_timestamp: {
                     type: DataTypes.DATE,
                     allowNull: true
+                },
+                is_connected: {
+                    type: DataTypes.SMALLINT
+                },
+                type: {
+                    type: DataTypes.SMALLINT
                 }
             },
             {

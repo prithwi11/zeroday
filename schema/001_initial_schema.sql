@@ -14,7 +14,8 @@ CREATE TABLE databases (
     db_connection JSONB NOT NULL DEFAULT {},
     fk_user_id INT8 NOT NULL,
     added_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    modified_timestamp TIMESTAMP
+    modified_timestamp TIMESTAMP,
+    is_connected INT2 NOT NULL DEFAULT 0,
 );
 
 CREATE TABLE snapshots (
