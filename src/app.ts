@@ -6,6 +6,7 @@ import { Config } from "./configuration/config"
 import { Sequelize } from "sequelize"
 import pathModule from "path";
 import { CommonHelper } from "./helpers/common_helper" // Move import up
+import { generateError } from './middlewares/errorHandler'; 
 
 dotenv.config()
 const app = express()
@@ -42,7 +43,7 @@ import { app_route } from "./app_routing"
 
 (async () => {
     app.use("/v1", app_route);
-
+    app.use(generateError)
     app.listen(PORT, "0.0.0.0", () => {
         console.log(`Server running on port ${PORT}`);
     });

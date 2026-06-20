@@ -4,6 +4,7 @@ import { DatabaseModel } from "../../database/model/database_model";
 import { SnapshotModel } from "../../snapshot/model/model.snapshot";
 import { SnapshotQueryModel } from "../../snapshot/model/model.snapshot_query";
 import { ExplainAnalyzeModel } from "../../snapshot/model/model.explain_analyze";
+import { AppError } from "../../../errors/AppError";
 
 export class DashboardController {
     private _databaseModel = new DatabaseModel();
@@ -12,54 +13,48 @@ export class DashboardController {
     private _explainAnalyzeModel = new ExplainAnalyzeModel();
 
     dashboard = async(req: AuthRequest, res: Response) => {
-        try {
-            const user_id = req.user.user_id;
-            const findDatabase: any = await this._databaseModel.findByAnyOne({
-                attributes: ['database_id'],
-                where: {
-                    fk_user_id: user_id
-                }
-            });
-            if (!findDatabase) {
-                return res.status(400).json({ success: false, 'message': 'No Database found' })
+        const user_id = req.user.user_id;
+        const findDatabase: any = await this._databaseModel.findByAnyOne({
+            attributes: ['database_id'],
+            where: {
+                fk_user_id: user_id
             }
-
-            const database_id = findDatabase.database_id;
-
-            const findSnapshot: any = await this._snapshotModel.findAllByAny({
-                attributes: ['snapshot_id', 'captured_at'],
-                where: {
-                    fk_database_id: database_id
-                },
-                order: [['captured_at', 'DESC']],
-                limit: 2
-            });
-            const snapshot_arr: object[] = [];
-            if (!findSnapshot || findSnapshot.length == 0) {
-                return res.status(200).json({ success: true, message: 'data fetched successfully', data: snapshot_arr });
-            }
-            const lastTwoSnapshotIds: number[] = findSnapshot ? findSnapshot.map((snap: any) => snap.snapshot_id): [];
-            if (lastTwoSnapshotIds.length < 2) {
-                return res.status(400).json({ success: false, message: 'Not enough data produced to show dashboard, Please trigger first' });
-            }
-
-            const snapshot_data: any = await this._snapshotQueryModel.fetchDashboard(lastTwoSnapshotIds);
-            console.log("snapshot_data", snapshot_data);
-            if (snapshot_data.length > 0) {
-                const enriched = await Promise.all(
-                    snapshot_data.map(async (snapshot: any) => {
-                        const regression = await this.detectRegression(database_id, snapshot.pg_stat_queryId, parseFloat(snapshot.avg_time_in_window), lastTwoSnapshotIds[0]);
-                        return { ...snapshot, regression }
-                    })
-                )
-                return res.status(200).json({ success: true, message: 'data fetched successfully', data: enriched });
-            }
-            return res.status(200).json({ success: true, message: 'data fetched successfully', data: snapshot_data });
+        });
+        if (!findDatabase) {
+            throw AppError.badRequest('No Database found')
         }
-        catch (error: any) {
-            console.log(error.stack, error);
-            return res.status(500).json({ success: false, 'message' : 'Something went wrong, Please try again later!' });
+
+        const database_id = findDatabase.database_id;
+
+        const findSnapshot: any = await this._snapshotModel.findAllByAny({
+            attributes: ['snapshot_id', 'captured_at'],
+            where: {
+                fk_database_id: database_id
+            },
+            order: [['captured_at', 'DESC']],
+            limit: 2
+        });
+        const snapshot_arr: object[] = [];
+        if (!findSnapshot || findSnapshot.length == 0) {
+            return res.status(200).json({ success: true, message: 'data fetched successfully', data: snapshot_arr });
         }
+        const lastTwoSnapshotIds: number[] = findSnapshot ? findSnapshot.map((snap: any) => snap.snapshot_id): [];
+        if (lastTwoSnapshotIds.length < 2) {
+            throw AppError.badRequest('Not enough data produced to show dashboard, Please trigger first');
+        }
+
+        const snapshot_data: any = await this._snapshotQueryModel.fetchDashboard(lastTwoSnapshotIds);
+        console.log("snapshot_data", snapshot_data);
+        if (snapshot_data.length > 0) {
+            const enriched = await Promise.all(
+                snapshot_data.map(async (snapshot: any) => {
+                    const regression = await this.detectRegression(database_id, snapshot.pg_stat_queryId, parseFloat(snapshot.avg_time_in_window), lastTwoSnapshotIds[0]);
+                    return { ...snapshot, regression }
+                })
+            )
+            return res.status(200).json({ success: true, message: 'data fetched successfully', data: enriched });
+        }
+        return res.status(200).json({ success: true, message: 'data fetched successfully', data: snapshot_data });
     }
 
     detectRegression = async(database_id: number, queryId: string, current_avg: number, latestSnapshotId: any) => {
@@ -99,39 +94,32 @@ export class DashboardController {
     }
 
     insertIntoExplain = async(explainJson: any, fk_snapshot_query_id: number) => {
-        try {
-            const rootPlan = explainJson[0]?.Plan;
-            if (!rootPlan) return;
-                
-            const processNode = async(nodeData: any, parentId: number | null) => {
-                const insertObj: any = {
-                    fk_snapshot_query_id: fk_snapshot_query_id,
-                    parent_id: parentId,
-                    node_type: nodeData['Node Type'],
-                    estimated_rows: nodeData['Plan Rows'] !== undefined ? BigInt(nodeData['Plan Rows']) : null,
-                    actual_rows: nodeData['Actual Rows'] !== undefined ? BigInt(nodeData['Actual Rows']) : null,
-                    startup_time: nodeData['Actual Startup Time'] !== undefined ? nodeData['Actual Startup Time'] : null,
-                    execution_time: nodeData['Actual Total Time'] !== undefined ? nodeData['Actual Total Time'] : null,
-                    rows_removed_by_filter: nodeData['Rows Removed by Filter'] !== undefined ? BigInt(nodeData['Rows Removed by Filter']) : null,
-                    loops: nodeData['Actual Loops'] !== undefined ? parseInt(nodeData['Actual Loops'], 10) : null,
-                    shared_read_blocks: nodeData['Shared Read Blocks'] !== undefined ? BigInt(nodeData['Shared Read Blocks']) : null,
-                    shared_hit_blocks: nodeData['Shared Hit Blocks'] !== undefined ? BigInt(nodeData['Shared Hit Blocks']) : null
-                };
+        const rootPlan = explainJson[0]?.Plan;
+        if (!rootPlan) return;
+            
+        const processNode = async(nodeData: any, parentId: number | null) => {
+            const insertObj: any = {
+                fk_snapshot_query_id: fk_snapshot_query_id,
+                parent_id: parentId,
+                node_type: nodeData['Node Type'],
+                estimated_rows: nodeData['Plan Rows'] !== undefined ? BigInt(nodeData['Plan Rows']) : null,
+                actual_rows: nodeData['Actual Rows'] !== undefined ? BigInt(nodeData['Actual Rows']) : null,
+                startup_time: nodeData['Actual Startup Time'] !== undefined ? nodeData['Actual Startup Time'] : null,
+                execution_time: nodeData['Actual Total Time'] !== undefined ? nodeData['Actual Total Time'] : null,
+                rows_removed_by_filter: nodeData['Rows Removed by Filter'] !== undefined ? BigInt(nodeData['Rows Removed by Filter']) : null,
+                loops: nodeData['Actual Loops'] !== undefined ? parseInt(nodeData['Actual Loops'], 10) : null,
+                shared_read_blocks: nodeData['Shared Read Blocks'] !== undefined ? BigInt(nodeData['Shared Read Blocks']) : null,
+                shared_hit_blocks: nodeData['Shared Hit Blocks'] !== undefined ? BigInt(nodeData['Shared Hit Blocks']) : null
+            };
 
-                let insertExplain: any = await this._explainAnalyzeModel.addNewRecord(insertObj);
-                let currentNodeId: number = insertExplain.id;
-                if (nodeData.Plans && Array.isArray(nodeData.Plans)) {
-                    for (const childPlan of nodeData.Plans) {
-                        await processNode(childPlan, currentNodeId);
-                    }
+            let insertExplain: any = await this._explainAnalyzeModel.addNewRecord(insertObj);
+            let currentNodeId: number = insertExplain.id;
+            if (nodeData.Plans && Array.isArray(nodeData.Plans)) {
+                for (const childPlan of nodeData.Plans) {
+                    await processNode(childPlan, currentNodeId);
                 }
             }
-            await processNode(rootPlan, null);
-            
         }
-        catch(error: any) {
-            console.log(error, error.stack);
-            return { status: false, success: false, 'message' : 'Something went wrong, Please try again later!' };
-        }
+        await processNode(rootPlan, null);
     }
 }

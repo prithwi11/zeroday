@@ -4,6 +4,7 @@ import { Client } from 'pg';
 import { ExplainAnalyzeModel } from '../../snapshot/model/model.explain_analyze';
 import { SnapshotQueryModel } from '../../snapshot/model/model.snapshot_query';
 import { SnapshotModel } from '../../snapshot/model/model.snapshot';
+import { AppError } from '../../../errors/AppError';
 
 export class RecommendationController {
     private _explainAnalyzeModel = new ExplainAnalyzeModel();
@@ -11,44 +12,39 @@ export class RecommendationController {
     private _snapshotQueriesModel = new SnapshotQueryModel();
 
     recommendation = async(req: AuthRequest, res: Response) => {
-        try {
-            if (!req.body.queryId) {
-                return res.status(400).json({ success: false, message: 'Please provide queryId!' });
-            }
-    
-            const nodes: any = await this._explainAnalyzeModel.findAllByAny({
-                where: { fk_snapshot_query_id: req.body.queryId }
-            });
-    
-            if (!nodes || nodes.length === 0) {
-                return res.status(200).json({ success: true, message: 'No plan data found', data: [] });
-            }
-    
-            const nodeMap = new Map();
-            nodes.forEach((node: any) => nodeMap.set(String(node.id), node));
-    
-            const flags: any[] = [];
-    
-            for (const node of nodes) {
-                const wastefulScan = this.checkWastefulScan(node);
-                if (wastefulScan) flags.push(wastefulScan);
-    
-                const badCardinality = this.checkBadCardinalityEstimate(node);
-                if (badCardinality) flags.push(badCardinality);
-    
-                const expensiveRepeated = this.checkExpensiveRepeatedWork(node, nodeMap);
-                if (expensiveRepeated) flags.push(expensiveRepeated);
-            }
-    
-            const timeSink = this.checkTotalTime(nodes);
-            if (timeSink) flags.push(timeSink);
-    
-            return res.status(200).json({ success: true, message: 'Recommendation fetched successfully', data: flags });
+        if (!req.body.queryId) {
+            throw AppError.badRequest("PLease provide queryId")
         }
-        catch (error: any) {
-            console.log(error.stack, error);
-            return res.status(500).json({ success: false, message: 'Something went wrong, Please try again later!' });
+
+        const nodes: any = await this._explainAnalyzeModel.findAllByAny({
+            where: { fk_snapshot_query_id: req.body.queryId }
+        });
+
+        if (!nodes || nodes.length === 0) {
+            return res.status(200).json({ success: true, message: 'No plan data found', data: [] });
         }
+
+        const nodeMap = new Map();
+        nodes.forEach((node: any) => nodeMap.set(String(node.id), node));
+
+        const flags: any[] = [];
+
+        for (const node of nodes) {
+            const wastefulScan = this.checkWastefulScan(node);
+            if (wastefulScan) flags.push(wastefulScan);
+
+            const badCardinality = this.checkBadCardinalityEstimate(node);
+            if (badCardinality) flags.push(badCardinality);
+
+            const expensiveRepeated = this.checkExpensiveRepeatedWork(node, nodeMap);
+            if (expensiveRepeated) flags.push(expensiveRepeated);
+        }
+
+        const timeSink = this.checkTotalTime(nodes);
+        if (timeSink) flags.push(timeSink);
+
+        return res.status(200).json({ success: true, message: 'Recommendation fetched successfully', data: flags });
+    
     }
 
     /**
