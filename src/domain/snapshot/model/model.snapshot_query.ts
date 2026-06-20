@@ -86,6 +86,7 @@ export class SnapshotQueryModel extends Model {
                 sq2.query_text,
                 sq2.calls - sq1.calls as calls_in_window,
                 sq2.total_exec_time - sq1.total_exec_time as total_time_in_window,
+                sq2."pg_stat_queryId" as "pg_stat_queryId",
                 CASE
                     WHEN (sq2.calls - sq1.calls) = 0 THEN 0
                     ELSE (sq2.total_exec_time - sq1.total_exec_time) / (sq2.calls - sq1.calls)
@@ -99,16 +100,55 @@ export class SnapshotQueryModel extends Model {
              WHERE s1.snapshot_id = :snapshot1  
              AND s2.snapshot_id = :snapshot2  
              AND sq2.calls > sq1.calls 
+             AND sq2.total_exec_time > sq1.total_exec_time
              ORDER BY total_time_in_window DESC`,
             {
                 replacements: {
-                    snapshot1: lastTwoSnapshotIds[0],
-                    snapshot2: lastTwoSnapshotIds[1]
+                    snapshot1: lastTwoSnapshotIds[1],
+                    snapshot2: lastTwoSnapshotIds[0]
                 },
                 type: QueryTypes.SELECT
             }
         );
 
+        return results;
+    }
+
+    public async getHistoricalWindows(database_id: number, queryId: string, n: number, latestSnapshotId: number) {
+        const results = await this.Model.sequelize.query(
+            `
+            SELECT
+                windowed.snapshot_id,
+                windowed.captured_at,
+                (windowed.total_exec_time - prev_total_exec_time)/(NULLIF(windowed.calls - prev_calls, 0)) as avg_time_in_window
+                FROM(
+                    SELECT 
+                        s.snapshot_id,
+                        s.captured_at,
+                        sq.total_exec_time,
+                        LAG(sq.total_exec_time) OVER (ORDER BY s.captured_at) AS prev_total_exec_time,
+                        sq.calls,
+                        LAG(sq.calls) OVER (ORDER BY s.captured_at) AS prev_calls
+                    FROM main.snapshot_queries sq
+                    JOIN main.snapshots s ON sq.fk_snapshot_id = s.snapshot_id
+                    WHERE s.fk_database_id = :database_id
+                    AND s.snapshot_id != :latestSnapshotId
+                    AND sq."pg_stat_queryId" = :queryId
+                ) windowed
+            WHERE prev_total_exec_time IS NOT NULL
+            ORDER BY captured_at DESC
+            LIMIT :n
+            `,
+            {
+                replacements: {
+                    database_id: database_id,
+                    queryId: queryId,
+                    n: n,
+                    latestSnapshotId: latestSnapshotId
+                },
+                type: QueryTypes.SELECT
+            }
+        );
         return results;
     }
 }
