@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { DatabaseController } from '../controller/database_controller';
 import { CommonMiddleware } from '../../../middlewares/common_middleware';
+import { validateSchema } from '../../../middlewares/schema_validator';
+import { CreateDatabaseInput, createDatabaseSchema, databaseIdSchema } from '../../../schemas/database.schema';
 
 const databaseController = new DatabaseController();
 const router = Router();
@@ -8,7 +10,8 @@ const router = Router();
 const common_middleware = new CommonMiddleware();
 
 let middlewares = [
-    common_middleware.authMiddleware
+    common_middleware.authMiddleware,
+    validateSchema(createDatabaseSchema, 'body')
 ]
 router
     .route("/addDatabase")
@@ -17,6 +20,11 @@ router
 router
     .route("/listDatabase")
     .post(middlewares, databaseController.listDatabases)
+
+middlewares = [
+    common_middleware.authMiddleware,
+    validateSchema(databaseIdSchema, 'body')
+]
 
 router
     .route("/connect")
