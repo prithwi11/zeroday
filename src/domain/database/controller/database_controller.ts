@@ -16,7 +16,9 @@ export class DatabaseController {
             throw AppError.badRequest('All fields are required');
         }
 
-        const db = await this._databaseModel.addNewRecord({ database_name, db_connection, fk_user_id: user_id });
+        let db_connection_encrypted: string = await global.encrypt_decrypt_helper.encryptResponse(JSON.stringify(db_connection));
+
+        const db = await this._databaseModel.addNewRecord({ database_name, db_connection: db_connection_encrypted, fk_user_id: user_id });
 
         return res.status(201).json({ success: true, message: 'Database registered successfully', data: db });
     };
@@ -41,7 +43,7 @@ export class DatabaseController {
                 database_id: database_id
             }
         });
-        console.log("database_data ========> ", database_data);
+        console.log("database_data ========> ", JSON.parse(JSON.stringify(database_data)));
         if (!database_data) {
             throw AppError.badRequest('No Database records found');
         }
@@ -49,10 +51,14 @@ export class DatabaseController {
         let client: any;
 
         if (database_data.type == 1) {
-            const db_host: any = database_data.db_connection.host;
+            console.log("db_connection", database_data.db_connection)
+            let db_connection: any = await global.encrypt_decrypt_helper.decryptRequest(database_data.db_connection);
+            console.log("db_connection", db_connection)
+            let db_connection_parsed = JSON.parse(db_connection);
+            const db_host: any = db_connection_parsed.host;
             const db_name = database_data.database_name;
-            const user = database_data.db_connection.user;
-            const password = database_data.db_connection.password;
+            const user = db_connection_parsed.user;
+            const password = db_connection_parsed.password;
             
             client = new Client({
                 user: user,

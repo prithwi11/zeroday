@@ -7,6 +7,7 @@ import { Sequelize } from "sequelize"
 import pathModule from "path";
 import { CommonHelper } from "./helpers/common_helper" // Move import up
 import { generateError } from './middlewares/errorHandler'; 
+import { Encryption } from "./helpers/encryption_decryption_helper"
 
 dotenv.config()
 const app = express()
@@ -18,12 +19,24 @@ declare global {
     var Helpers: CommonHelper;
     var connectionObj: Sequelize;
     var path: typeof pathModule;
+    var encrypt_decrypt_helper: Encryption;
 }
+
+let encrypt_decypt_helper = new Encryption({
+    algorithm: process.env.CRYPT_ALGO as string,
+    encryptionKey: process.env.ENCRYPT_KEY as string,
+    ...(process.env.SALT ? { salt: process.env.SALT } : {}), // Only include if it exists
+    iv: process.env.IV as string,
+    idEncryptionKey: process.env.ID_ENCRYPT_KEY as string,
+    idEncryptionIv: process.env.ID_ENCRYPT_IV as string
+})
+
 
 // 2. Initialize GLOBALS immediately before importing routes
 global.path = pathModule;
 global.connectionObj = new Config().connectPgDB();
 global.Helpers = new CommonHelper(); // Initialize helper immediately
+global.encrypt_decrypt_helper = encrypt_decypt_helper
 
 /** ALLOW CORS */
 app.use(cors({
